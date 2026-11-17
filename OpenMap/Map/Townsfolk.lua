@@ -240,7 +240,7 @@ local function Build(kinds, done)
 			end)
 			if not ok then
 				geterrorhandler()(err)
-				return onDone()
+				return onDone(false)
 			end
 			if objIds[oi] then C_Timer.After(0, ObjStep) else onDone() end
 		end

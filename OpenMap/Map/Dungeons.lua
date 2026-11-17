@@ -1493,8 +1493,15 @@ local function LibQuestieDBAdapter()
 	if type(dungeons) ~= "table" then return end
 	local uiMapToArea = DecodeZoneTable(zpriv.uiMapIdToAreaId) or {}
 	local byName = {}
+	local function AddName(n, areaId)
+		if type(n) == "string" and n ~= "" and (not byName[n] or areaId < byName[n]) then
+			byName[n] = areaId
+		end
+	end
 	for areaId, e in pairs(dungeons) do
-		if type(e) == "table" and type(e[1]) == "string" then byName[e[1]] = byName[e[1]] or areaId end
+		local loc = C_Map and C_Map.GetAreaInfo and C_Map.GetAreaInfo(areaId)
+		AddName(loc, areaId)
+		if type(e) == "table" then AddName(e[1], areaId) end
 	end
 	libQuestAdapter = {
 		db = {
@@ -1504,7 +1511,12 @@ local function LibQuestieDBAdapter()
 		zones = {
 			GetDungeons = function() return dungeons end,
 			GetAreaIdByUiMapId = function(_, mapID) return uiMapToArea[mapID] end,
-			GetAreaIdByName = function(_, name) return name and byName[name] or nil end,
+			GetAreaIdByName = function(_, name)
+				if type(name) ~= "string" then return nil end
+				if byName[name] then return byName[name] end
+				local base = name:match("^(.-)%s*%-%s*[^-]+$")
+				return base and byName[base] or nil
+			end,
 		},
 	}
 	return libQuestAdapter.db, libQuestAdapter.zones
