@@ -121,12 +121,14 @@ local function Apply()
 		end
 		if math.abs((map:GetScale() or 1) - mod.db.windowScale) > 0.001 then map:SetScale(mod.db.windowScale) end
 	end
-	local size = mod.db.windowSize
+	local size, refitted = mod.db.windowSize, false
 	if size and not InCombatLockdown() and (math.abs(map:GetWidth() - size[1]) > 0.5 or math.abs(map:GetHeight() - size[2]) > 0.5) then
 		map:SetSize(size[1], size[2])
 		Refit()
+		refitted = true
 	end
 	ours = false
+	return refitted
 end
 
 -- maximized: Blizzard keeps the map art's shape (black bars at the sides on a wide
@@ -140,6 +142,7 @@ FillScreen = function()
 	if math.abs(map:GetWidth() - w) < 1 then return end
 	map:SetWidth(w)
 	Refit()
+	return true
 end
 
 local function Save()
@@ -390,7 +393,8 @@ function mod:SetupWindow(worldMap)
 		mod.ChatOverMap()
 		if handle then handle:SetShown(not max) end
 		for _, g in ipairs(grip) do g:SetShown(not max) end
-		if max then FillScreen() else Apply() end
+		local refitted = max and FillScreen() or Apply()
+		if not refitted and map:IsShown() then Refit() end
 	end
 	if map.Maximize then hooksecurefunc(map, "Maximize", Mode) end
 	if map.Minimize then hooksecurefunc(map, "Minimize", Mode) end
