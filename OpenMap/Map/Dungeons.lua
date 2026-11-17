@@ -1473,18 +1473,62 @@ local quests                    -- Questie's dungeon area -> { questID, ... } (n
 local scanning
 local dungeonOf                 -- Questie's area for part of a dungeon -> the dungeon's
 
+local function DecodeZoneTable(v)
+	if type(v) == "table" then return v end
+	if type(v) ~= "string" then return nil end
+	local fn = (loadstring or load)(v)
+	if not fn then return nil end
+	local ok, t = pcall(fn)
+	return ok and type(t) == "table" and t or nil
+end
+
+local libQuestAdapter
+local function LibQuestieDBAdapter()
+	if libQuestAdapter then return libQuestAdapter.db, libQuestAdapter.zones end
+	local ldb = _G.LibQuestieDB
+	if type(ldb) ~= "table" or not ldb.Quest or not ldb.Quest.GetAllIds or not ldb.Quest.Get then return end
+	local zdb = ldb.Support and ldb.Support.Get and ldb.Support.Get("ZoneDB")
+	local zpriv = zdb and zdb.private
+	local dungeons = zpriv and zpriv.dungeons
+	if type(dungeons) ~= "table" then return end
+	local uiMapToArea = DecodeZoneTable(zpriv.uiMapIdToAreaId) or {}
+	local byName = {}
+	for areaId, e in pairs(dungeons) do
+		if type(e) == "table" and type(e[1]) == "string" then byName[e[1]] = byName[e[1]] or areaId end
+	end
+	libQuestAdapter = {
+		db = {
+			QuestPointers = ldb.Quest.GetAllIds(true),
+			QueryQuestSingle = ldb.Quest.Get,
+		},
+		zones = {
+			GetDungeons = function() return dungeons end,
+			GetAreaIdByUiMapId = function(_, mapID) return uiMapToArea[mapID] end,
+			GetAreaIdByName = function(_, name) return name and byName[name] or nil end,
+		},
+	}
+	return libQuestAdapter.db, libQuestAdapter.zones
+end
+
 local function Questie()
 	local loader = _G.QuestieLoader
-	if not loader then return end
-	local ok, db = pcall(loader.ImportModule, loader, "QuestieDB")
-	local ok2, zones = pcall(loader.ImportModule, loader, "ZoneDB")
-	if ok and ok2 and db and db.QuestPointers and db.QueryQuestSingle and zones and zones.GetDungeons then return db, zones end
+	if loader then
+		local ok, db = pcall(loader.ImportModule, loader, "QuestieDB")
+		local ok2, zones = pcall(loader.ImportModule, loader, "ZoneDB")
+		if ok and ok2 and db and db.QuestPointers and db.QueryQuestSingle and zones and zones.GetDungeons then return db, zones end
+	end
+	return LibQuestieDBAdapter()
 end
 
 -- where a dungeon's quests come from: the one chosen, else the first there of Questie (listed here),
 -- Dungeon Journal and NeedRoll (opened at them); nil with none
 local function QuestSource()
-	local have = { questie = _G.QuestieLoader ~= nil, journal = Journal() ~= nil, needroll = NeedRoll() ~= nil }
+	local loaded = C_AddOns and C_AddOns.IsAddOnLoaded or IsAddOnLoaded
+	local have = {
+		questie = _G.QuestieLoader ~= nil or _G.LibQuestieDB ~= nil or (loaded and loaded("QuestieDB")) and true or false,
+		journal = Journal() ~= nil,
+		needroll = NeedRoll() ~= nil,
+	}
 	local want = mod.db.questSource
 	if have[want] then return want end
 	return have.questie and "questie" or have.journal and "journal" or have.needroll and "needroll" or nil
