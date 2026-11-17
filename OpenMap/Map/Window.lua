@@ -270,11 +270,18 @@ function mod:SetupWindow(worldMap)
 	moveAny = MoveAnyOn()
 	classicMap = ClassicMapOn()
 	if classicMap then C_Timer.After(5, AskClassicMap) end   -- (once the login's own popups are up)
+	local maxRefitted = false
+	local function RefitNative(refitted)
+		if refitted or maxRefitted then maxRefitted = false return end
+		if not map:IsShown() or (mod.IsStitched and mod.IsStitched()) then return end
+		if InCombatLockdown() then afterCombat = true return end
+		Refit()
+	end
 	-- (what waited out combat: the window laid out again, the question asked)
 	ns.RegisterEvent(windowOwner, "PLAYER_REGEN_ENABLED", function()
 		if not afterCombat then return end
 		afterCombat = false
-		if map:IsShown() then if Maximized() then FillScreen() else Apply() end end
+		if map:IsShown() then RefitNative(Maximized() and FillScreen() or Apply()) end
 		if classicMap then AskClassicMap() end
 	end)
 	-- Enhance QoL's Mover (World Map) sizes and places the map too, and the two fight over its scale (a
@@ -390,11 +397,11 @@ function mod:SetupWindow(worldMap)
 	if not classicMap then grip = { Grip("BOTTOMRIGHT"), Grip("BOTTOMLEFT") } end
 	local function Mode()
 		local max = Maximized()
+		if not max then maxRefitted = false end
 		mod.ChatOverMap()
 		if handle then handle:SetShown(not max) end
 		for _, g in ipairs(grip) do g:SetShown(not max) end
-		local refitted = max and FillScreen() or Apply()
-		if not refitted and map:IsShown() then Refit() end
+		RefitNative(max and FillScreen() or Apply())
 	end
 	if map.Maximize then hooksecurefunc(map, "Maximize", Mode) end
 	if map.Minimize then hooksecurefunc(map, "Minimize", Mode) end
@@ -427,9 +434,9 @@ function mod:SetupWindow(worldMap)
 	-- and a value OpenMap wrote taints that code: the map holds protected frames (the group members' pin),
 	-- so in combat its Hide was blocked and neither Escape nor M closed it, players' reports)
 	map:HookScript("OnShow", function() mod.ChatOverMap() end)
-	map:HookScript("OnHide", function() mod.ChatOverMap() end)
+	map:HookScript("OnHide", function() maxRefitted = false mod.ChatOverMap() end)
 	-- Blizzard re-sizes the maximized map when the screen or UI scale changes
-	if map.UpdateMaximizedSize then hooksecurefunc(map, "UpdateMaximizedSize", function() if Maximized() then FillScreen() end end) end
+	if map.UpdateMaximizedSize then hooksecurefunc(map, "UpdateMaximizedSize", function() if Maximized() and FillScreen() then maxRefitted = true end end) end
 	map:HookScript("OnShow", Mode)
 	for _, g in ipairs(grip) do g:SetFrameLevel(OverIcons() + 1) end
 	FitRightGrip()
