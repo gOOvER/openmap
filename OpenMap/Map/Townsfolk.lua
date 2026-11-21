@@ -70,57 +70,24 @@ function mod.SetTownsfolkProvider(p)
 	mod:RefreshTownsfolk()
 end
 
--- whether there's a database to read: Questie's, standalone QuestieDB, or one given (OpenMapAPI)
+function mod.TownsfolkProvider()
+	return provider
+end
+
+-- whether there's a database to read: Questie's, or one given (a player's own: Questie's database
+-- without Questie)
 function mod.HasTownsfolk()
 	local loaded = C_AddOns and C_AddOns.IsAddOnLoaded or IsAddOnLoaded
-	return provider ~= nil or _G.QuestieLoader ~= nil or _G.LibQuestieDB ~= nil
-		or (loaded and (loaded("Questie") or loaded("QuestieDB"))) and true or false
-end
-
-local function DecodeTable(v)
-	if type(v) == "table" then return v end
-	if type(v) ~= "string" then return nil end
-	local fn = (loadstring or load)(v)
-	if not fn then return nil end
-	local ok, t = pcall(fn)
-	return ok and type(t) == "table" and t or nil
-end
-
-local libAdapter
-local function LibQuestieDBAdapter()
-	if libAdapter then return libAdapter.db, libAdapter.zones end
-	local ldb = _G.LibQuestieDB
-	if type(ldb) ~= "table" or not ldb.Npc or not ldb.Npc.GetAllIds or not ldb.Npc.Get or not ldb.Enum then return end
-	local zdb = ldb.Support and ldb.Support.Get and ldb.Support.Get("ZoneDB")
-	local zpriv = zdb and zdb.private
-	local areaMap = DecodeTable(zpriv and zpriv.areaIdToUiMapId)
-	if not areaMap then return end
-	local merged = {}
-	for k, v in pairs(areaMap) do merged[k] = v end
-	for k, v in pairs(DecodeTable(zpriv.areaIdToUiMapIdOverride) or {}) do merged[k] = v end
-	libAdapter = {
-		db = {
-			NPCPointers = ldb.Npc.GetAllIds(true),
-			npcFlags = ldb.Enum.npcFlags or {},
-			QueryNPCSingle = ldb.Npc.Get,
-			QueryObjectSingle = ldb.Object and ldb.Object.Get or nil,
-		},
-		zones = {
-			GetUiMapIdByAreaId = function(_, areaID) return merged[areaID] end,
-		},
-	}
-	return libAdapter.db, libAdapter.zones
+	return provider ~= nil or _G.QuestieLoader ~= nil or (loaded and loaded("Questie")) and true or false
 end
 
 local function Questie()
 	if provider then return provider.db, provider.zones end
 	local loader = _G.QuestieLoader
-	if loader then
-		local ok, db = pcall(loader.ImportModule, loader, "QuestieDB")
-		local ok2, zones = pcall(loader.ImportModule, loader, "ZoneDB")
-		if ok and ok2 and db and db.NPCPointers and db.QueryNPCSingle and zones then return db, zones end
-	end
-	return LibQuestieDBAdapter()
+	if not loader then return end
+	local ok, db = pcall(loader.ImportModule, loader, "QuestieDB")
+	local ok2, zones = pcall(loader.ImportModule, loader, "ZoneDB")
+	if ok and ok2 and db and db.NPCPointers and db.QueryNPCSingle and zones then return db, zones end
 end
 
 -- An NPC that walks about (Girl with Puppies round Orgrimmar) has every point of its path among its
@@ -196,55 +163,31 @@ local function Build(kinds, done)
 			end
 		end
 	end
-	-- the mailboxes: from provider, Questie's Townsfolk module, or scanned from QuestieDB.Object
-	local function Mailboxes(k, onDone)
-		local info = { name = MINIMAP_TRACKING_MAILBOX or "Mailbox" }
+	-- the mailboxes, all at once (a few dozen objects): your faction's, as Questie sorts them, or
+	-- every one where it can't
+	local function Mailboxes(k)
 		if provider then
-			if provider.mailboxes and QDB.QueryObjectSingle then
-				for _, id in ipairs(provider.mailboxes(faction) or {}) do
-					local spawns = QDB.QueryObjectSingle(id, "spawns")
-					if spawns then Pins(k, spawns, info) end
-				end
-			end
-			return onDone()
-		end
-		local folk = _G.QuestieLoader and select(2, pcall(_G.QuestieLoader.ImportModule, _G.QuestieLoader, "Townsfolk"))
-		if type(folk) == "table" and folk.GetMailboxes and QDB.QueryObjectSingle then
-			local list
-			if folk.GetFactionSpecificMailboxes then
-				local ok, alliance, horde = pcall(folk.GetFactionSpecificMailboxes)
-				if ok then list = faction == "H" and horde or alliance end
-			end
-			list = (type(list) == "table" and #list > 0) and list or folk.GetMailboxes() or {}
-			for _, id in ipairs(list) do
+			if not (provider.mailboxes and QDB.QueryObjectSingle) then return end
+			local info = { name = MINIMAP_TRACKING_MAILBOX or "Mailbox" }
+			for _, id in ipairs(provider.mailboxes(faction) or {}) do
 				local spawns = QDB.QueryObjectSingle(id, "spawns")
 				if spawns then Pins(k, spawns, info) end
 			end
-			return onDone()
+			return
 		end
-		local obj = _G.LibQuestieDB and _G.LibQuestieDB.Object
-		if type(obj) ~= "table" or not obj.GetAllIds or not obj.GetRaw or not obj.Get then return onDone() end
-		local objIds = obj.GetAllIds()
-		local oi = 0
-		local function ObjStep()
-			local ok, err = pcall(function()
-				for _ = 1, 500 do
-					oi = oi + 1
-					local id = objIds[oi]
-					if not id then return end
-					if obj.GetRaw(id, "name") == "Mailbox" then
-						local spawns = obj.Get(id, "spawns")
-						if spawns then Pins(k, spawns, info) end
-					end
-				end
-			end)
-			if not ok then
-				geterrorhandler()(err)
-				return onDone(false)
-			end
-			if objIds[oi] then C_Timer.After(0, ObjStep) else onDone() end
+		local folk = _G.QuestieLoader and select(2, pcall(_G.QuestieLoader.ImportModule, _G.QuestieLoader, "Townsfolk"))
+		if type(folk) ~= "table" or not folk.GetMailboxes or not QDB.QueryObjectSingle then return end
+		local list
+		if folk.GetFactionSpecificMailboxes then
+			local ok, alliance, horde = pcall(folk.GetFactionSpecificMailboxes)
+			if ok then list = faction == "H" and horde or alliance end
 		end
-		ObjStep()
+		list = (type(list) == "table" and #list > 0) and list or folk.GetMailboxes() or {}
+		local info = { name = MINIMAP_TRACKING_MAILBOX or "Mailbox" }
+		for _, id in ipairs(list) do
+			local spawns = QDB.QueryObjectSingle(id, "spawns")
+			if spawns then Pins(k, spawns, info) end
+		end
 	end
 
 	local ids = {}
@@ -293,34 +236,22 @@ local function Build(kinds, done)
 		end
 	end
 	local npcs = false              -- (any kind picked from the NPCs: else no NPC to go through)
-	local pending = 0
-	local allOk = true
-	local function FinishOne(ok)
-		if ok == false then allOk = false end
-		pending = pending - 1
-		if pending == 0 then done(allOk) end
-	end
-	local mailboxKinds = {}
 	for _, k in ipairs(kinds) do
-		if k.mailbox then mailboxKinds[#mailboxKinds + 1] = k else npcs = true end
-	end
-	pending = #mailboxKinds + (npcs and 1 or 0)
-	if pending == 0 then return done(true) end
-	for _, k in ipairs(mailboxKinds) do
-		local ok, err = pcall(Mailboxes, k, FinishOne)
-		if not ok then
-			geterrorhandler()(err)
-			FinishOne(false)
+		if k.mailbox then
+			local ok, err = pcall(Mailboxes, k)
+			if not ok then geterrorhandler()(err) end
+		else
+			npcs = true
 		end
 	end
-	if not npcs then return end
+	if not npcs then return done(true) end
 	function Step()
 		local ok, finished = pcall(Chunk)
 		if not ok then
 			geterrorhandler()(finished)
-			return FinishOne(false)
+			return done(false)
 		end
-		if finished then return FinishOne(true) end
+		if finished then return done(true) end
 		C_Timer.After(0, Step)
 	end
 	Step()

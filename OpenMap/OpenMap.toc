@@ -105,5 +105,6 @@ Map\Welcome.lua
 
 # For other addons (docs/api.md)
 API.lua
+Map\QuestieDB.lua
 
 Init.lua
