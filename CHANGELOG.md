@@ -21,6 +21,9 @@
 - **Blizzard map-pin button**: clicking Blizzard's native map-pin ("place marker") button in the
   top-left corner of the world map now arms OpenMap's pin mode and drops a waypoint on click
   across the stitched map (#324). By gOOvER.
+- **German (`deDE`) translations**: added the missing strings (562/562), replaced awkward phrasing
+  (e.g. `Quill` -> `Zeichenstift`, `Floors` -> `Ebenen`), and unified the form of address
+  (`Ihr`/`Euch`). By gOOvER.
 
 
 ## v0.8.11 (2026-11-20)
