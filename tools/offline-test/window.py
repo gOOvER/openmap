@@ -32,7 +32,7 @@ class WindowTests(unittest.TestCase):
         cursorX, cursorY = 500, 300
         function GetCursorPosition() return cursorX, cursorY end
         function IsMouseButtonDown() return true end
-        C_Timer = { After = noop }
+        C_Timer = { After = function(_, fn) fn() end }
         UIParent = { GetWidth = function() return 1920 end, GetHeight = function() return 1080 end }
 
         local function makeFrame()

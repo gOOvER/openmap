@@ -644,12 +644,20 @@ SetupQuestLog = function()
 	end
 	if map.Maximize then hooksecurefunc(map, "Maximize", ShowToggle) end
 	if map.Minimize then hooksecurefunc(map, "Minimize", ShowToggle) end
-	local function OnLogToggle()
-		if toggle and toggle:IsShown() then toggle:Refresh() end
-		FitRightGrip()
+	local logRefitQueued = false
+	local function FlushLogRefit()
+		logRefitQueued = false
 		if not Maximized() and not InCombatLockdown() and map:IsShown() and map.UpdateSpacerFrameAnchoring then
 			UpdateSpacer()
 			Refit()
+		end
+	end
+	local function OnLogToggle()
+		if toggle and toggle:IsShown() then toggle:Refresh() end
+		FitRightGrip()
+		if not Maximized() and not InCombatLockdown() and map:IsShown() and map.UpdateSpacerFrameAnchoring and not logRefitQueued then
+			logRefitQueued = true
+			C_Timer.After(0, FlushLogRefit)
 		end
 	end
 	Log():HookScript("OnShow", OnLogToggle)
