@@ -18,6 +18,9 @@
   longer jumps to the top-left corner (`Clamp` now updates before `SetSize`), and `Apply`,
   corner resize, and quest log toggles now refresh `UpdateSpacerFrameAnchoring` before refitting
   the canvas. By gOOvER.
+- **Blizzard map-pin button**: clicking Blizzard's native map-pin ("place marker") button in the
+  top-left corner of the world map now arms OpenMap's pin mode and drops a waypoint on click
+  across the stitched map (#324). By gOOvER.
 
 
 ## v0.8.11 (2026-11-20)
