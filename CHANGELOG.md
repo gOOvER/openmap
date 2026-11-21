@@ -7,6 +7,12 @@
 - **Secret-safe player position reads**: player position lookups in the map views, dungeon
   entrances, flight path overlays, and controller view now route through `Safe.PlayerPos` and guard
   vector reads against secret values, preventing Lua errors in combat or restricted instances. By
+- **Maximized dungeon map size**: switching from the windowed quest log (`L`) to the maximized map
+  (`M`) inside a dungeon now refits the map canvas even when the window width already matches full
+  screen (#297). By gOOvER.
+- **Stockade entrance & Dungeon Journal lookup**: clicking the Stormwind Stockade entrance now
+  resolves `"The Stockade"` in both Blizzard's dungeon maps and the Dungeon Journal (#289). By
+
   gOOvER.
 
 ## v0.8.11 (2026-11-20)

@@ -5,7 +5,9 @@ local _, ns = ...
 
 ns.MapChangelog = {
 	{ version = "Unreleased", date = "", heads = { [1] = "Fixed", }, items = {
-		"|cff6e2c0aSecret-safe player position reads|r: player position lookups in the map views, dungeon entrances, flight path overlays, and controller view now route through Safe.PlayerPos and guard vector reads against secret values, preventing Lua errors in combat or restricted instances. By gOOvER.",
+		"|cff6e2c0aSecret-safe player position reads|r: player position lookups in the map views, dungeon entrances, flight path overlays, and controller view now route through Safe.PlayerPos and guard vector reads against secret values, preventing Lua errors in combat or restricted instances. By",
+		"|cff6e2c0aMaximized dungeon map size|r: switching from the windowed quest log (L) to the maximized map (M) inside a dungeon now refits the map canvas even when the window width already matches full screen (#297). By gOOvER.",
+		"|cff6e2c0aStockade entrance & Dungeon Journal lookup|r: clicking the Stormwind Stockade entrance now resolves \"The Stockade\" in both Blizzard's dungeon maps and the Dungeon Journal (#289). By",
 	} },
 	{ version = "v0.8.11", date = "2026-11-20", heads = { [1] = "Improved", [4] = "Fixed", [15] = "Also", }, items = {
 		"|cff6e2c0aTold when a newer OpenMap is out|r: when a friend, guild member or group member has a newer release, a line in chat says so, once a session (\"OpenMap X is out (you have Y). Update through CurseForge.\"). Your version rides only on messages OpenMap already sends them (the hello to friends who use it, your first shared place to your guild, a pin share to your group); older copies pass over it. Options' \"Say when OpenMap has an update\" turns it off, and then your version isn't sent either.",
