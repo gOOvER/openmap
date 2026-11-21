@@ -197,7 +197,7 @@ class StandaloneQuestieDBProvider(unittest.TestCase):
             C_Map = { GetAreaInfo = function(id) return id == 209 and "Shadowfang Keep" or nil end }
         """)
         self.lua.execute(
-            self.qdb_src.replace("local _, ns = ...\nlocal mod = ns.mod", "")
+            self.qdb_src.replace('local _, ns = ...\nlocal mod = ns.GetModule and ns:GetModule("worldmap") or ns.mod', "")
             + "\n" + m_q.group(0) + "\n" + m_qs.group(0)
             + "\nDungeonQuestSource = QuestSource\n"
         )

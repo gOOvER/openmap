@@ -1,5 +1,5 @@
 local _, ns = ...
-local mod = ns.mod
+local mod = ns.GetModule and ns:GetModule("worldmap") or ns.mod
 
 -- Standalone QuestieDB (LibQuestieDB) support when Questie itself is not installed:
 -- registers a provider through OpenMapAPI.RegisterTownsfolkProvider so Townsfolk and
