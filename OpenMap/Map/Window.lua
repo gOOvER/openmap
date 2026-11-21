@@ -31,6 +31,7 @@ local sizing = false            -- a grip is being dragged: the drag sizes the w
 local moveAny = false           -- Move Any owns position and scale, OpenMap owns viewport dimensions
 local classicMap = false        -- ClassicUI Forever's World map option owns the window (ClassicMapOn)
 local afterCombat = false       -- something here waited out combat: done as it ends
+local afterCombatRefit = false  -- resize spacer/refit waited out combat: done even if dimensions already match
 local windowOwner = {}          -- (its event handler's key)
 
 -- At PLAYER_LOGIN, enabled addons have finished loading. An installed but disabled
@@ -88,6 +89,11 @@ local function Refit()
 	end
 end
 
+local function UpdateSpacer()
+	if not map.UpdateSpacerFrameAnchoring then return end
+	if mod.KeepPadCursor then mod.KeepPadCursor(map.UpdateSpacerFrameAnchoring, map) else map:UpdateSpacerFrameAnchoring() end
+end
+
 local function Maximized()
 	return map.IsMaximized and map:IsMaximized()
 end
@@ -124,8 +130,10 @@ local function Apply()
 	local size, refitted = mod.db.windowSize, false
 	if size and not InCombatLockdown() and (math.abs(map:GetWidth() - size[1]) > 0.5 or math.abs(map:GetHeight() - size[2]) > 0.5) then
 		map:SetSize(size[1], size[2])
+		UpdateSpacer()
 		Refit()
 		refitted = true
+		afterCombatRefit = false
 	end
 	ours = false
 	return refitted
@@ -189,6 +197,14 @@ local function FitRightGrip()
 	g:SetFrameLevel(log and 9990 or OverIcons() + 1)
 end
 
+local function Clamp(w, h)
+	if not map or moveAny or classicMap or InCombatLockdown() then return end
+	w, h = w or map:GetWidth(), h or map:GetHeight()
+	if not (w and h) or w <= 0 then return end
+	local side = math.max(0, w - 160)
+	map:SetClampRectInsets(side, -side, -TOP_OFF, math.max(0, h - TOP_OFF - 80))
+end
+
 local function Grip(corner)
 	local left = corner == "BOTTOMLEFT"
 	local g = CreateFrame("Button", nil, map)
@@ -226,7 +242,15 @@ local function Grip(corner)
 		end
 		mod.db.windowSize = { math.floor(map:GetWidth() + 0.5), math.floor(map:GetHeight() + 0.5) }
 		if not moveAny then Save() end
-		if map:IsShown() then Refit() end   -- (laid out at the scale the drag showed: WorldMap.lua)
+		if map:IsShown() then
+			if InCombatLockdown() then
+				afterCombat = true
+				afterCombatRefit = true
+			else
+				UpdateSpacer()
+				Refit()
+			end
+		end   -- (laid out at the scale the drag showed: WorldMap.lua)
 		if mod.EndResize then mod.EndResize() end
 	end
 	g:SetScript("OnMouseUp", Finish)
@@ -247,6 +271,7 @@ local function Grip(corner)
 		local h = math.max(MIN_H, start.h - (y - start.y) / s)
 		ours = true
 		if not moveAny then
+			Clamp(w, h)
 			map:ClearAllPoints()
 			-- (offsets in the map's own units, as GetLeft gives)
 			map:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left and start.right - w or start.left, start.top)
@@ -279,9 +304,18 @@ function mod:SetupWindow(worldMap)
 	end
 	-- (what waited out combat: the window laid out again, the question asked)
 	ns.RegisterEvent(windowOwner, "PLAYER_REGEN_ENABLED", function()
-		if not afterCombat then return end
+		if not (afterCombat or afterCombatRefit) then return end
 		afterCombat = false
-		if map:IsShown() then RefitNative(Maximized() and FillScreen() or Apply()) end
+		if map:IsShown() then
+			local refitted = Maximized() and FillScreen() or Apply()
+			if afterCombatRefit then
+				afterCombatRefit = false
+				if not refitted and not Maximized() then UpdateSpacer() Refit() end
+			else
+				RefitNative(refitted)
+			end
+		end
+		afterCombatRefit = false
 		if classicMap then AskClassicMap() end
 	end)
 	-- Enhance QoL's Mover (World Map) sizes and places the map too, and the two fight over its scale (a
@@ -312,14 +346,8 @@ function mod:SetupWindow(worldMap)
 		map:SetClampedToScreen(true)
 		-- partly off the screen: sideways and down while some of it stays on, never up (its title bar is
 		-- what moves it; /openmap reset or the Look tab's Reset size and place bring it back)
-		local function Clamp()
-			local w, h = map:GetWidth(), map:GetHeight()
-			if not (w and h) or w <= 0 or InCombatLockdown() then return end
-			local side = math.max(0, w - 160)
-			map:SetClampRectInsets(side, -side, -TOP_OFF, math.max(0, h - TOP_OFF - 80))
-		end
 		Clamp()
-		map:HookScript("OnSizeChanged", Clamp)
+		map:HookScript("OnSizeChanged", function() Clamp() end)
 		if not Maximized() then blizzardSize = { map:GetWidth(), map:GetHeight() } end
 
 		-- the title bar: a strip along the top, clear of the corner buttons
@@ -616,8 +644,16 @@ SetupQuestLog = function()
 	end
 	if map.Maximize then hooksecurefunc(map, "Maximize", ShowToggle) end
 	if map.Minimize then hooksecurefunc(map, "Minimize", ShowToggle) end
-	Log():HookScript("OnShow", function() if toggle and toggle:IsShown() then toggle:Refresh() end FitRightGrip() end)
-	Log():HookScript("OnHide", function() if toggle and toggle:IsShown() then toggle:Refresh() end FitRightGrip() end)
+	local function OnLogToggle()
+		if toggle and toggle:IsShown() then toggle:Refresh() end
+		FitRightGrip()
+		if not Maximized() and not InCombatLockdown() and map:IsShown() and map.UpdateSpacerFrameAnchoring then
+			UpdateSpacer()
+			Refit()
+		end
+	end
+	Log():HookScript("OnShow", OnLogToggle)
+	Log():HookScript("OnHide", OnLogToggle)
 	-- leaving full screen: hidden first (Blizzard only widens the window for a quest log it shows itself)
 	local mm = map.BorderFrame and map.BorderFrame.MaximizeMinimizeFrame
 	local minimize = mm and mm.MinimizeButton
